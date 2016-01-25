@@ -69,6 +69,47 @@ Sincerely,
 
 """
 
+funds_solicitation = """\
+
+| UCD MAE Capstone Proposal Selection: {project_title}
+| {sponsor_email}
+
+Dear {sponsor_name},
+
+Now that the teams are assigned and you have had a chance to meet the students
+I would like to check in about the project funding. As a reminder, my only hard
+requirement for the class is that students create a design "on paper". But I
+also encourage the students to build prototypes for a more enriching learning
+experience, which many of them do. Mechanical prototypes, of course, cost
+money to construct and primarily we rely on the project sponsors to support
+this. We try to support a variety of projects from industry, the non-profit
+sector, and research with limited funding.
+
+1. The organization provides employee time to meet with the students regularly
+   for feedback and/or technical mentorship over the 5+ month period.
+2. If the organization desires a physical prototype they cover the costs for
+   materials and resources that are outside the scope of what we provide at the
+   University.
+3. If a site visit is required from a distant company, the company supports the
+   visit.
+4. Finally, we request that organizations donate $3k to the program as an
+   "in-kind" donation which will be used for our general funds to support all
+   of the projects. We will accept a sliding scale here if this is a financial
+   burden.
+
+The students will soon be preparing a proposal and preliminary budget.
+
+I need some information from each of you:
+
+1. Will you be funding a physical prototype if the students' proposed design is
+   approved? If so, how much will you provide?
+2. Will you be handling purchasing and/or reimbursements for you students, or
+   do you want to use UCD's system?
+3.
+
+
+"""
+
 students = pd.read_csv('final-teams.csv')
 sponsors = pd.read_csv('sponsors.csv')
 
