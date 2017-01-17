@@ -1,6 +1,13 @@
+#!/usr/bin/env python
+
 import os
 
 import pandas as pd
+
+PATH_TO_CATME_CSV = "/home/moorepants/Drive/EME185/2017/projects/catme-data-with-teams.csv"
+PATH_TO_SPONSORS_CSV = "/home/moorepants/Drive/EME185/2017/projects/sponsors.csv"
+PATH_TO_TEAM_EMAILS = "/home/moorepants/Drive/EME185/2017/projects/team-emails.html"
+PATH_TO_REJECTION_EMAILS ="/home/moorepants/Drive/EME185/2017/projects/rejection-emails.html"
 
 acceptance_template = """\
 {project_title}
@@ -24,7 +31,7 @@ Your TA consultant is {ta_name} [{ta_email}]. The sponsor for this project is
 {sponsor_name} from {organization}. You can contact the sponsor by email,
 {sponsor_email}, or phone, {sponsor_phone}. You should delegate a team member
 to get in touch with your sponsor as soon as possible. An initial interview is
-crucial for this week's memo.
+crucial for this week's assignments.
 
 Your team should respect the sponsors' time and treat them professionally. They
 have agreed to meet with you up to one hour per week through the duration of
@@ -34,8 +41,8 @@ relationship with them will likely benefit your career.
 
 **A handful of students will need to attend the other studio section this week
 due to the team assignment. Please, see the section listed above for your team.
-If you happen transfer from A03 to A02, you can arrive at 5pm instead of
-4:10pm, due to the lecture repetition.**
+If your name has a * beside it you need to switch sections. You do not need to
+change your section registration with the University.**
 
 Sincerely,
 
@@ -110,8 +117,8 @@ I need some information from each of you:
 
 """
 
-students = pd.read_csv('final-teams.csv')
-sponsors = pd.read_csv('sponsors.csv')
+students = pd.read_csv(PATH_TO_CATME_CSV)
+sponsors = pd.read_csv(PATH_TO_SPONSORS_CSV)
 
 project_ids = set(students['Project ID'])
 
@@ -122,7 +129,7 @@ def grab_student_entry(col, student):
 
 
 def grab_sponsor_entry(col, project_id):
-    row = sponsors[sponsors['Identifier'] == project_id]
+    row = sponsors[sponsors['ID'] == project_id]
     return row[col].iloc[0]
 
 
@@ -146,22 +153,29 @@ for project_id in project_ids:
     email_data['student_emails'] = ",".join([grab_student_entry('Email', s)
                                              for s in student_names])
     email_data['first_names'] = ", ".join([s.split(', ')[1] for s in student_names])
-    email_data['project_title'] = grab_student_entry('Project Title', student_names[0])
+    email_data['project_title'] = grab_sponsor_entry('Project Title', project_id)
     email_data['underline'] = "=" * len(email_data['project_title'])
     email_data['team_section'] = grab_student_entry('Project Section', student_names[0])
-    email_data['team_contact_list'] = "\n- " + "\n- ".join([s + " [{}]".format(grab_student_entry('Email', s)) for s in student_names])
+    email_data['team_contact_list'] = "\n- " + "\n- ".join([s + " [{}]{}".format(grab_student_entry('Email', s), '*' if grab_student_entry('Switched', s) else '') for s in student_names])
     last, first = grab_student_entry('TA', student_names[0]).split(', ')
     email_data['ta_name'] = first + ' ' + last
-    email_data['ta_email'] = 'fghadamli@ucdavis.edu' if email_data['ta_name'].startswith('Far') else 'mplefort@ucdavis.edu'
+    if email_data['ta_name'].startswith('Ken'):
+        ta_email = 'krlyons@ucdavis.edu'
+    elif email_data['ta_name'].startswith('Nav'):
+        ta_email = 'ngowrishankar@ucdavis.edu'
+    else:
+        ta_email = 'ggchen@ucdavis.edu'
+    email_data['ta_email'] = ta_email
 
     rst += acceptance_template.format(**email_data)
 
 with open('emails.rst', 'w') as rst_file:
     rst_file.write(rst)
 
-os.system('rst2html.py emails.rst emails.html')
+os.system('rst2html.py emails.rst {}'.format(PATH_TO_TEAM_EMAILS))
+os.remove('emails.rst')
 
-rejected_ids = list(sponsors[sponsors['Accepted'] == "No"]["Identifier"])
+rejected_ids = list(sponsors[sponsors['Accepted'] == "No"]["ID"])
 
 rst = ''
 
@@ -179,4 +193,5 @@ for rejected_id in rejected_ids:
 with open('rejection-emails.rst', 'w') as rst_file:
     rst_file.write(rst)
 
-os.system('rst2html.py rejection-emails.rst rejection-emails.html')
+os.system('rst2html.py rejection-emails.rst {}'.format(PATH_TO_REJECTION_EMAILS))
+os.remove('rejection-emails.rst')
