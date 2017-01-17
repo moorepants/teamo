@@ -1,4 +1,68 @@
-from teamo import MultipleChoiceSingleAnswerQuestion
+from teamo import (MultipleChoiceSingleAnswerQuestion,
+                   UnderrepresentedMemberQuestion, ProjectRankQuestion,
+                   compute_num_teams)
+
+
+def test_num_teams():
+
+    num_people = 70
+    min_num_people_per_team = 4
+
+    num_teams, max_in_team, num_large_teams = \
+        compute_num_teams(num_people, min_num_people_per_team)
+
+    assert num_teams == 17
+    assert max_in_team == 5
+    assert num_large_teams == 2
+
+    num_people = 72
+    min_num_people_per_team = 4
+
+    num_teams, max_in_team, num_large_teams = \
+        compute_num_teams(num_people, min_num_people_per_team)
+
+    assert num_teams == 18
+    assert max_in_team == 4
+    assert num_large_teams == 0
+
+
+def test_project_rank_question():
+
+    all_projects = ['A', 'B', 'C', 'D', 'E']
+    q = ProjectRankQuestion(all_projects)
+
+    project_assignment = 'A'
+
+    project_choices = [['A', 'B'],
+                       ['B', 'A'],
+                       ['C', 'A', 'D']]
+    score = q.compute_score(project_assignment, project_choices)
+    assert score == 1
+    score = q.compute_score(project_assignment, project_choices, ordered=True)
+    assert score == (3 + 2 + 2) / 9
+
+    project_choices = [['A', 'B'],
+                       ['B', 'A'],
+                       ['C', 'D']]
+    score = q.compute_score(project_assignment, project_choices)
+    assert score == 2 / 3
+    score = q.compute_score(project_assignment, project_choices, ordered=True)
+    assert score == (2 + 1 + 0) / 6
+
+
+def test_underrepresented_member_question():
+
+    underrep = ['Female', 'Other']
+    q = UnderrepresentedMemberQuestion(underrep)
+
+    responses = ['Male', 'Male', 'Male']
+    assert q.compute_score(responses) == 0
+
+    responses = ['Male', 'Male', 'Female']
+    assert q.compute_score(responses) == -1
+
+    responses = ['Male', 'Female', 'Female']
+    assert q.compute_score(responses) == 1
 
 
 def test_multiple_choice_single_answer_question():
