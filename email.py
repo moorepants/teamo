@@ -39,10 +39,10 @@ the course. They are volunteering their time, expertise, resources, and money
 for your educational experience. Keep in mind that developing a great
 relationship with them will likely benefit your career.
 
-**A handful of students will need to attend the other studio section this week
+A handful of students will need to attend the other studio section this week
 due to the team assignment. Please, see the section listed above for your team.
-If your name has a * beside it you need to switch sections. You do not need to
-change your section registration with the University.**
+**If your name has a * beside it you need to switch sections.** You do not need
+to change your section registration with the University.
 
 Sincerely,
 
