@@ -3,7 +3,7 @@
 # builtin
 import os
 from random import choice
-from collections import Counter
+from collections import Counter, defaultdict
 
 # external
 import pandas as pd
@@ -12,7 +12,7 @@ import pandas as pd
 from parse_rst import parse_document
 
 
-def compute_num_teams(num_people, min_in_team):
+def compute_num_teams(num_people, min_in_team, max_num_teams):
     """Returns the team numbers.
 
     Parameters
@@ -21,6 +21,8 @@ def compute_num_teams(num_people, min_in_team):
         The total number of people available to be on the team.
     min_in_team : integer
         The minimum number of people in a team.
+    max_num_teams : integer
+        The maximum number of teams that we have tables for.
 
     Returns
     =======
@@ -32,7 +34,11 @@ def compute_num_teams(num_people, min_in_team):
     """
 
     num_teams = num_people // min_in_team
-    num_larger_teams = num_people % min_in_team
+    if num_teams > max_num_teams:
+        num_teams = max_num_teams
+        num_larger_teams = num_people - num_teams * min_in_team
+    else:
+        num_larger_teams = num_people % min_in_team
     if num_larger_teams > 0:
         max_in_team = min_in_team + 1
     else:
@@ -59,20 +65,33 @@ def populate_students(roster, catme_data):
 
     """
     students = {}
-    for name in roster['Name']:
+    for roster_idx, roster_row in roster.iterrows():
+        name = roster_row['Name']
+        section = roster_row['Section']
         row = catme_data[catme_data['Name'] == name]
         if len(row) == 0:
             person = Person(name)
         else:
-            try:
-                selections = row['2017 Project Choice'].iloc[0].split(',')
-            except AttributeError:  # np.nan
+            r = row[['Project Choice #1',
+                     'Project Choice #2',
+                     'Project Choice #3',
+                     'Project Choice #4',
+                     'Project Choice #5']]
+            selections = r.values.squeeze().tolist()
+            if all(pd.isnull(selections)):
                 selections = []
+            else:
+                selections = [s.lower().strip() for s in selections]
+            self_rep_sec = row['Studio Section'].iloc[0]
+            if section != self_rep_sec:
+                print('{} reported wrong section.'.format(name))
             person = Person(name,
-                            row['2017 Studio'].iloc[0],
+                            section,
                             True if row['Studio Switch'].iloc[0] == 'Yes' else False,
                             row['Sex'].iloc[0],
-                            selections)
+                            selections,
+                            row['GPA'].iloc[0],
+                            row['Race'].iloc[0])
         students[person.name] = person
     return students
 
@@ -124,6 +143,26 @@ def rank_projects(students, projects):
     votes['title'] = titles
 
     return votes
+
+
+def rank_projects_weighted(students, projects):
+    """Returns a DataFrame with the number of weighted votes that each project
+    received. If projects were selected as a first choice it gets 5 points and
+    if 5th choice it gets 1 point."""
+    scores = defaultdict(lambda: 0)
+    for name, person in students.items():
+        if person.selections:
+            scores[person.selections[0]] += 5
+            scores[person.selections[1]] += 4
+            scores[person.selections[2]] += 3
+            scores[person.selections[3]] += 2
+            scores[person.selections[4]] += 1
+    votes_df = pd.DataFrame({'votes': list(scores.values())},
+                            index=scores.keys())
+    titles_df = pd.DataFrame({'title': [p.title for p in projects.values()]},
+                             index=projects.keys())
+    votes_df['title'] = titles_df
+    return votes_df.sort_values('votes', ascending=False)
 
 
 class ChooseAnyOrAllQuestion(object):
@@ -237,7 +276,7 @@ class Person(object):
     """Represents a single person in the pool of potential team members."""
 
     def __init__(self, name, original_section=None, willing_to_switch=None,
-                 gender=None, selections=None):
+                 gender=None, selections=None, gpa=None, race=None):
         """
         Parameters
         ==========
@@ -260,10 +299,14 @@ class Person(object):
         self.willing_to_switch = willing_to_switch
         self.gender = gender
         self.selections = selections
+        self.gpa = gpa
+        self.race = race
 
     def __str__(self):
         s = "Name: {}\n".format(self.name)
         s += "Gender: {}\n".format(self.gender)
+        s += "Race: {}\n".format(self.race)
+        s += "GPA: {}\n".format(self.gpa)
         s += "Original Section: {}\n".format(self.original_section)
         s += "Willing to switch: {}\n".format(self.willing_to_switch)
         if self.selections is not None:
@@ -271,11 +314,10 @@ class Person(object):
         return s
 
     def __repr__(self):
-        return "Person('{}', '{}', {}, '{}', {})".format(self.name,
-                                                         self.original_section,
-                                                         self.willing_to_switch,
-                                                         self.gender,
-                                                         self.selections)
+        msg = "Person('{}', '{}', {}, '{}', {}, {}, {})"
+        return msg.format(self.name, self.original_section,
+                          self.willing_to_switch, self.gender, self.selections,
+                          self.gpa, self.race)
 
     def can_attend(self, section):
         """Returns true if the person can attend the provided section."""
@@ -283,6 +325,12 @@ class Person(object):
             return True
         else:
             return False
+
+    def chose_project(self, proj_id):
+        return proj_id in self.selections
+
+    def male(self):
+        return self.gender != 'Male'
 
 
 class Project(object):
@@ -324,13 +372,13 @@ class Team(object):
                     ['Female', 'Other/Prefer not to answer']])
 
     def has_female(self):
-        if self.num_females >= 1:
+        if self.num_females() >= 1:
             return True
         else:
             return False
 
     def has_only_one_female(self):
-        if self.num_females == 1:
+        if self.num_females() == 1:
             return True
         else:
             return False
