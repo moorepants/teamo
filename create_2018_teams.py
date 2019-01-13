@@ -30,33 +30,31 @@ print(msg.format(num_teams - num_larger_teams, MIN_TEAM_SIZE, num_larger_teams,
 
 print(rank_projects(students, projects))
 rankings = rank_projects_weighted(students, projects)
+print(rankings)
 
-# Add predetermined teams.
+available_pool = [students[n] for n in list(roster['Name'])]
+
+# Add predetermined teams and remove them from the available pool.
 with open(PATH_TO_FIXED, 'r') as f:
     fixed_teams = yaml.load(f)
 for proj_id, members in fixed_teams.items():
     projects[proj_id].team = Team([students[m] for m in members])
-
-# Remove these folks from the pool.
-available_pool = [students[n] for n in list(roster['Name'])]
-for proj_id, project in projects.items():
-    if project.team:
-        for person in project.team.members:
-            available_pool.remove(person)
-
-# this gives the order with fewest votes first
-fixed_ids = list(fixed_teams.keys())
-without_fixed = rankings.iloc[~rankings.index.isin(fixed_ids)]
-selected_ids = list(without_fixed.sort_values('votes').
-                    tail(num_teams - len(fixed_ids)).index) + fixed_ids
+    for m in members:
+        available_pool.remove(students[m])
 
 # 1. Drop the hydrofoil because only four of the boat team members voted for
 # it and I'd have to mentor more.
 # Bump up strap because Dick will be such a good mentor, students don't
 # understand how good of a project this will be and it had plenty of votes.
 
-selected_ids.remove('hydrofoil')
-selected_ids.append('strap')
+# this gives the order with fewest votes first
+fixed_ids = list(fixed_teams.keys())
+without_fixed = rankings.iloc[~rankings.index.isin(fixed_ids)]
+dont_rank = ['hydrofoil', 'pool', 'strap']
+selected_by_rank = without_fixed.iloc[~without_fixed.index.isin(dont_rank)]
+selected_ids = list(selected_by_rank.sort_values('votes').
+                    tail(num_teams - len(fixed_ids) - 1).index) + fixed_ids + ['strap']
+
 selected_ids = list(rankings.loc[selected_ids].sort_values('votes').index)
 selected = [projects[p_id] for p_id in selected_ids]
 
@@ -138,6 +136,44 @@ for project in selected:
 
     section_proj_count[proj_section] += 1
 
+# tried to fill them starting with their favorite choice here, doesn't seem to
+# work well and has lots of remainders
+#a02_only = []
+#a03_only = []
+#either_sec = []
+#for person in available_pool.copy():
+    #if person.willing_to_switch:
+        #either_sec.append(person)
+    #elif person.original_section == 'A02':
+        #a02_only.append(person)
+    #elif person.original_section == 'A03':
+        #a03_only.append(person)
+#
+#shuffle(a02_only)
+#shuffle(a03_only)
+#shuffle(either_sec)
+#
+#for person in a02_only:
+    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
+        #proj = projects[proj_id]
+        #if proj.team.section() == 'A02' and proj.team.num_members() < 5:
+            #proj.team.members.append(person)
+            #break
+#
+#for person in a03_only:
+    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
+        #proj = projects[proj_id]
+        #if proj.team.section() == 'A02' and proj.team.num_members() < 5:
+            #proj.team.members.append(person)
+            #break
+#
+#for person in a03_only:
+    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
+        #proj = projects[proj_id]
+        #if proj.team.num_members() < 5:
+            #proj.team.members.append(person)
+            #break
+
 for person in available_pool.copy():
     possible = []
     for project in selected:
@@ -168,3 +204,20 @@ print([v.team.num_members() for k, v in projects.items() if v.team])
 print('The remainders.')
 for person in available_pool:
     print(person)
+
+final_student_names = []
+final_project_ids = []
+final_sections = []
+for proj in selected:
+    for person in proj.team.members:
+        final_project_ids.append(proj.id)
+        final_student_names.append(person.name)
+        final_sections.append(proj.team.section())
+
+matches = pandas.DataFrame({'Project': final_project_ids,
+                            'Section': final_sections},
+                           index=final_student_names).sort_index()
+matches.to_csv('project-matches.csv')
+
+# TODO : This script isn't quite working. It is not honoring the section and
+# section switch for every student!!
