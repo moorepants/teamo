@@ -58,16 +58,17 @@ rejection_template = """\
 
 Dear {sponsor_name},
 
-I am writing to inform you that your proposal for the 2016 UCD MAE Mechanical
+I am writing to inform you that your proposal for the 2018 UCD MAE Mechanical
 Capstone Course, {project_title}, was not selected for this year's course. We
-accepted 29 of 47 proposals for teams of 3 to 4 students. Your proposal did not
+accepted 22 of 29 proposals for teams of 4 to 5 students. Your proposal did not
 receive enough votes from the students to ensure we would have enough team
 members on the project.
 
 The department and I value your participation and hope that you will consider
 being involved in the future. If you desire, I would love to roll over your
-project to next year. I will also keep you on our announcement list for future
-years unless you request otherwise.
+project to next year and would be happy to help you make your proposal more
+attractive to the students. I will also keep you on our announcement list for
+future years unless you request otherwise.
 
 Once again, we are very grateful for your proposal and your support of the
 program. Let me know if you have any questions.
@@ -181,11 +182,9 @@ rst = ''
 
 for rejected_id in rejected_ids:
     email_data = {}
-    email_data['sponsor_name'] = (grab_sponsor_entry('First Name', rejected_id)
-                                  + ' ' +
-                                  grab_sponsor_entry('Last Name', rejected_id))
+    email_data['sponsor_name'] = grab_sponsor_entry('Name', rejected_id)
     email_data['sponsor_email'] = grab_sponsor_entry('Email', rejected_id)
-    email_data['project_title'] = grab_sponsor_entry('Project Title', rejected_id)
+    email_data['project_title'] = grab_sponsor_entry('Title', rejected_id)
     email_data['underline'] = "=" * len(email_data['project_title'])
 
     rst += rejection_template.format(**email_data)
