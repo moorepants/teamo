@@ -82,8 +82,8 @@ def populate_students(roster, catme_data):
                 selections = []
             else:
                 selections = [s.lower().strip() for s in selections]
-            self_rep_sec = row['Studio Section'].iloc[0]
-            if section != self_rep_sec:
+            self_reported_sec = row['Studio Section'].iloc[0]
+            if section != self_reported_sec:
                 print('{} reported wrong section.'.format(name))
             person = Person(name,
                             section,
@@ -321,7 +321,7 @@ class Person(object):
 
     def can_attend(self, section):
         """Returns true if the person can attend the provided section."""
-        if self.original_section == section or self.willing_to_switch:
+        if self.original_section == section or self.willing_to_switch or section is None:
             return True
         else:
             return False
@@ -359,10 +359,11 @@ class Project(object):
 class Team(object):
 
     def __init__(self, members=None):
-        if members is None:
-            self.members = []
-        else:
-            self.members = members
+        self._section = None
+        self.members = []
+        if members is not None:
+            for m in members:
+                self.add_member(m)
 
     def num_members(self):
         return len(self.members)
@@ -383,25 +384,22 @@ class Team(object):
         else:
             return False
 
-    def section(self):
-        num_a02 = 0
-        num_a03 = 0
-        found_no = False
-        for member in self.members:
-            if member.original_section == 'A02':
-                num_a02 += 1
-            if member.original_section == 'A03':
-                num_a03 += 1
-            if member.willing_to_switch == 'No':
-                section = member.original_section
-                found_no = True
-
-        if not found_no:
-            if num_a02 > num_a03:
-                section = 'A02'
-            elif num_a03 > num_a02:
-                section = 'A03'
+    def add_member(self, person):
+        if len(self.members) == 0:
+            if person.willing_to_switch:
+                self._section = choice(['A02', 'A03'])
             else:
-                section = choice(['A02', 'A03'])
+                self._section = person.original_section
+            self.members.append(person)
+        else:
+            if person.willing_to_switch:
+                self.members.append(person)
+            else:
+                if person.original_section != self.section():
+                    msg = "Can't add {} to this group, not a matching section."
+                    raise ValueError(msg.format(person.name))
+                else:
+                    self.members.append(person)
 
-        return section
+    def section(self):
+        return self._section

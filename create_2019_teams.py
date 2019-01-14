@@ -8,10 +8,24 @@ import pandas
 from teamo import (rank_projects, rank_projects_weighted, populate_projects,
                    populate_students, compute_num_teams, Team)
 
-PATH_TO_ROSTER = '/home/moorepants/Drive/Teaching/EME185/2018/rosters/roster-for-team-selection.csv'
-PATH_TO_CATME = '/home/moorepants/Drive/Teaching/EME185/2018/projects/catme-data.csv'
+YEAR = '2019'
+
+# roster-for-team-selection.csv should be generated from the latest
+# photorosters.ucdavis.edu download with columns: Student ID, Section, Email,
+# Name
+PATH_TO_ROSTER = '/home/moorepants/Drive/Teaching/EME185/{}/rosters/roster-for-team-selection.csv'.format(YEAR)
+
+# catme-data.csv is first of the three sections in the CATME download file. I
+# typically have to manually edit some of the mistakes or missing data from
+# students.
+PATH_TO_CATME = '/home/moorepants/Drive/Teaching/EME185/{}/projects/catme-data.csv'.format(YEAR)
+
 PATH_TO_PROJ_DIR = '/home/moorepants/Websites/eme185-website/content/pages/projects'
-PATH_TO_FIXED = '/home/moorepants/Drive/Teaching/EME185/2018/projects/fixed-teams.yml'
+
+# fixed-teams.yml includes any apriori placements into teams, i.e. I choose
+# them manually.
+PATH_TO_FIXED = '/home/moorepants/Drive/Teaching/EME185/{}/projects/fixed-teams.yml'.format(YEAR)
+
 MIN_TEAM_SIZE = 4
 MAX_NUM_TEAMS = 22  # only have 11 tables in each section
 MAX_NUM_TEAMS_PER_SECTION = 11
@@ -28,35 +42,53 @@ msg = 'There will be {} teams of {} and {} teams of {}.'
 print(msg.format(num_teams - num_larger_teams, MIN_TEAM_SIZE, num_larger_teams,
                  MIN_TEAM_SIZE + 1))
 
+print('Raw Project Rankings:')
 print(rank_projects(students, projects))
+
 rankings = rank_projects_weighted(students, projects)
+print('Weight Project Rankings:')
 print(rankings)
 
 available_pool = [students[n] for n in list(roster['Name'])]
 
-# Add predetermined teams and remove them from the available pool.
+# Add students to teams that were chosen apriori. If the team is full then
+# remove the project from the list of available projects.
 with open(PATH_TO_FIXED, 'r') as f:
-    fixed_teams = yaml.load(f)
-for proj_id, members in fixed_teams.items():
+    populated_teams = yaml.load(f)
+for proj_id, members in populated_teams.items():
     projects[proj_id].team = Team([students[m] for m in members])
     for m in members:
         available_pool.remove(students[m])
 
-# 1. Drop the hydrofoil because only four of the boat team members voted for
-# it and I'd have to mentor more.
-# Bump up strap because Dick will be such a good mentor, students don't
-# understand how good of a project this will be and it had plenty of votes.
+fixed_ids = [k for k in populated_teams
+             if len(projects[k].team.members) >= max_in_team]
 
-# this gives the order with fewest votes first
-fixed_ids = list(fixed_teams.keys())
-without_fixed = rankings.iloc[~rankings.index.isin(fixed_ids)]
-dont_rank = ['hydrofoil', 'pool', 'strap']
-selected_by_rank = without_fixed.iloc[~without_fixed.index.isin(dont_rank)]
-selected_ids = list(selected_by_rank.sort_values('votes').
-                    tail(num_teams - len(fixed_ids) - 1).index) + fixed_ids + ['strap']
+print('These teams are full:')
+print(fixed_ids)
 
+# aeration: selected for A01
+# wasteconvey: selected for A01
+# rowsys: lower of the two from the same sponsor
+# microtantium: lower of the 5 submitted by same sponsor
+# catfemur: lower of the 5 submitted by same sponsor
+projs_to_remove = ['wasteconvey',
+                   'aeration',
+                   'rowsys',
+                   'microtitanium',
+                   'catfemur']
+
+# remove the fixed teams and the selected removals
+remaining_proposals = rankings.iloc[~rankings.index.isin(fixed_ids +
+                                                         projs_to_remove)]
+
+selected_ids = list(remaining_proposals.sort_values('votes').
+                    tail(num_teams - len(fixed_ids)).index) + fixed_ids
 selected_ids = list(rankings.loc[selected_ids].sort_values('votes').index)
 selected = [projects[p_id] for p_id in selected_ids]
+
+print('Selected projects:')
+for i, proj in enumerate(reversed(selected)):
+    print(i + 1, proj.id)
 
 # For students that didn't fill out the survey, give them the last five
 # projects.
@@ -75,6 +107,16 @@ def sort_by_project_rank(people, proj_id):
 
 section_proj_count = {'A02': 0, 'A03': 0}
 
+
+def get_people_who_selected(project):
+    people_who_selected = [student for student in available_pool if
+                           student.chose_project(project.id)]
+    #print('{} people selected this project'.format(len(people_who_selected)))
+    # NOTE : shuffle() gives some randomization for the order of people who
+    # ranked equivilantly
+    shuffle(people_who_selected)
+    return sort_by_project_rank(people_who_selected, project.id)
+
 for project in selected:
 
     #print(20 * "=")
@@ -84,30 +126,24 @@ for project in selected:
     if not project.team:
         project.team = Team()
 
-    people_who_selected = [student for student in available_pool if
-                           student.chose_project(project.id)]
-    #print('{} people selected this project'.format(len(people_who_selected)))
-    # NOTE : shuffle() gives some randomization for the order of people who
-    # ranked equivilantly
-    shuffle(people_who_selected)
-    people_who_selected = sort_by_project_rank(people_who_selected, project.id)
+    people_who_selected = get_people_who_selected(project)
 
     used = []
     for i, person in enumerate(people_who_selected):
         # TODO : if three (or four) males on team, don't add woman
 
+        # fill up to 3 members
         if project.team.num_members() > MIN_TEAM_SIZE - 1:
             break
 
         if person not in used:
             if project.team.num_members() == 0:
-                proj_section = person.original_section
+                project.team.add_member(person)
+                proj_section = project.team.section()
                 if section_proj_count[proj_section] >= MAX_NUM_TEAMS_PER_SECTION:
                     pass
-                else:
-                    project.team.members.append(person)
-                #print('Added first person:', person)
             else:
+                proj_section = project.team.section()
                 #print('females', project.team.num_females())
                 if project.team.has_only_one_female():
                     # try to pick one more woman first
@@ -115,17 +151,18 @@ for project in selected:
                                 if s.gender != 'Male' and s.can_attend(proj_section)]
                     if nonmales:
                         for nonmale in nonmales:
-                            project.team.members.append(nonmale)
-                            used.append(nonmale)
-                            #print('Added second female:', nonmale)
-                            break  # from nonmales for loop (only add one femal)
+                            if person.can_attend(proj_section):
+                                project.team.add_member(nonmale)
+                                used.append(nonmale)
+                                #print('Added second female:', nonmale)
+                                break  # from nonmales for loop (only add one femal)
                     else:
                         if person.can_attend(proj_section):
-                            project.team.members.append(person)
+                            project.team.add_member(person)
                             #print('Couldnt add female so added:', person)
                 else:
                     if person.can_attend(proj_section):
-                        project.team.members.append(person)
+                        project.team.add_member(person)
                         #print('Added:', person)
 
     for member in project.team.members:
@@ -135,44 +172,6 @@ for project in selected:
             pass
 
     section_proj_count[proj_section] += 1
-
-# tried to fill them starting with their favorite choice here, doesn't seem to
-# work well and has lots of remainders
-#a02_only = []
-#a03_only = []
-#either_sec = []
-#for person in available_pool.copy():
-    #if person.willing_to_switch:
-        #either_sec.append(person)
-    #elif person.original_section == 'A02':
-        #a02_only.append(person)
-    #elif person.original_section == 'A03':
-        #a03_only.append(person)
-#
-#shuffle(a02_only)
-#shuffle(a03_only)
-#shuffle(either_sec)
-#
-#for person in a02_only:
-    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
-        #proj = projects[proj_id]
-        #if proj.team.section() == 'A02' and proj.team.num_members() < 5:
-            #proj.team.members.append(person)
-            #break
-#
-#for person in a03_only:
-    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
-        #proj = projects[proj_id]
-        #if proj.team.section() == 'A02' and proj.team.num_members() < 5:
-            #proj.team.members.append(person)
-            #break
-#
-#for person in a03_only:
-    #for proj_id in set(person.selections).intersection([p.id for p in selected]):
-        #proj = projects[proj_id]
-        #if proj.team.num_members() < 5:
-            #proj.team.members.append(person)
-            #break
 
 for person in available_pool.copy():
     possible = []
@@ -185,7 +184,7 @@ for person in available_pool.copy():
     if possible:
         for proj_id in possible:
             if projects[proj_id].team.num_members() < 5:
-                projects[proj_id].team.members.append(person)
+                projects[proj_id].team.add_member(person)
                 available_pool.remove(person)
                 break
 
@@ -194,6 +193,12 @@ for proj_id, project in projects.items():
     if project.team:
         section_students[project.team.section()] += project.team.num_members()
         print(project)
+
+# ensure that students can be in the project section
+for project in selected:
+    for member in project.team.members:
+        if not member.can_attend(project.team.section()):
+            print("{} can't be in section {}".format(member, project.section))
 
 print(section_proj_count)
 print(section_students)
@@ -218,6 +223,3 @@ matches = pandas.DataFrame({'Project': final_project_ids,
                             'Section': final_sections},
                            index=final_student_names).sort_index()
 matches.to_csv('project-matches.csv')
-
-# TODO : This script isn't quite working. It is not honoring the section and
-# section switch for every student!!
